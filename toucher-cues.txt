@@ -1,0 +1,6 @@
+gratitude	Your partner has just helped you solve a problem. Try to communicate GRATITUDE through touch.
+love	Think of all the wonderful qualities that your partner has, and how they enrich your life. Try to express LOVE through touch.
+sadness	You have just received bad news. You are feeling very sad and you want to let your partner know. Try to express SADNESS through touch.
+happiness	You have just received good news. You are feeling very happy and you want to let your partner know. Try to express HAPPINESS through touch.
+attention	You just heard about something that your partner might find interesting. Try to get their ATTENTION through touch.
+calming	Your partner is feeling upset thinking about a situation that cannot be changed. Try to be CALMING through touch.

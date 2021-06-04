@@ -1,0 +1,6 @@
+gratitude	Your partner is trying to communicate GRATITUDE.
+love	Your partner is trying to express LOVE.
+sadness	Your partner is trying to express SADNESS.
+happiness	Your partner is trying to express HAPPINESS.
+attention	Your partner is trying to get your ATTENTION.
+calming	Your partner is trying to be CALMING.

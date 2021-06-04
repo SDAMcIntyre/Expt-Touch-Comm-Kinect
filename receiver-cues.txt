@@ -1,0 +1,6 @@
+gratitude	GRATITUDE
+love	LOVE
+sadness	SADNESS
+happiness	HAPPINESS
+attention	ATTENTION
+calming	CALMING
