@@ -1,5 +1,5 @@
 import psychopy
-psychopy.useVersion('1.83.04')
+#psychopy.useVersion('1.83.04')
 from psychopy import visual, core, event, data, gui, parallel
 import numpy as np
 import random, os, pygame, serial, time
