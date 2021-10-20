@@ -1,195 +1,141 @@
-import psychopy
-#psychopy.useVersion('1.83.04')
-from psychopy import visual, core, event, data, gui, parallel
-import numpy as np
-import random, os, pygame, serial, time
-from touchcomm import *
+
+import os
+
+from psychopy import core, data, event
+
+from libraries.triggerbox import TriggerBox
+
+from modules.arduino_comm import ArduinoComm
+from modules.kinect_comm import KinectComm
+from modules.audio_management import AudioManager
+from modules.ui_management import UserInterfaceExpt, ui_get_initialData
+from modules.file_management import FileManager
+from modules.touch_stimuli_management import TouchStimuli
 
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
 # -- GET INPUT FROM THE EXPERIMENTER --
-
-exptInfo = {'01. Participant Code':'PA',
-            '02. Number of repeats':3,
-            '03. Press to continue':False,
-            '04. Screen':0,
-            '05. Screen resolution':'800,600', #'1280,720',
-            '06. Arduino serial port':'COM3',
-            '07. Folder for saving data':'data'}
-exptInfo['08. Date and time']= data.getDateStr(format='%Y-%m-%d_%H-%M-%S') ##add the current time
-
-dlg = gui.DlgFromDict(exptInfo, title='Experiment details', fixed=['08. Date and time'])
-if dlg.OK:
-    pass ## continue
-else:
-    core.quit() ## the user hit cancel so exit
-
-toucherScreenRes = [int(i) for i in exptInfo['05. Screen resolution'].split(',')]
-
-# ----
-
+exptInfo = {'01. Participant Code': 'ST01',
+            '02. Number of repeats': 30,
+            '03. Press to continue': False,
+            '04. Screen': 0,
+            '05. Screen resolution': '800,600',
+            '06. Arduino serial port': 'COM3',
+            '07. Folder for saving data': 'data',
+            '08. Date and time': data.getDateStr(format='%Y-%m-%d_%H-%M-%S')}
+exptInfo = ui_get_initialData(exptInfo)
 
 # -- SETUP STIMULUS RANDOMISATION AND CONTROL --
-
-items = ['attention','gratitude','love','sadness','happiness','calming']
-
-stimList = []
-for cue in items: stimList.append({'cue':cue})
-trials = data.TrialHandler(stimList, exptInfo['02. Number of repeats'])
-trials.data.addDataType('response')
-correctText = ['incorrect','correct']
-
-# ----
+items = ['attention', 'gratitude', 'love', 'sadness', 'happiness', 'calming']
+nb_repeat = exptInfo['02. Number of repeats']
+correctText = ['incorrect', 'correct']
+stimuli = TouchStimuli(items, nb_repeat, correctText)
 
 # -- MAKE FOLDER/FILES TO SAVE DATA --
-
-dataFolder = './'+exptInfo['07. Folder for saving data']+'/'
-if not os.path.exists(dataFolder):
-    os.makedirs(dataFolder)
-
-fileName = dataFolder + 'touch-comm-MNG_' + exptInfo['08. Date and time'] +'_neural_P' + exptInfo['01. Participant Code']
-infoFile = open(fileName+'_info.csv', 'w') 
-for k,v in exptInfo.items(): infoFile.write(k + ',' + str(v) + '\n')
-infoFile.close()
-dataFile = open(fileName+'_communication-data.csv', 'w')
-dataFile.write('trial,cued\n')
-logFile = open(fileName+'_log.csv', 'w')
-logFile.write('time,event\n')
-
-# ----
+dataFolder = exptInfo['07. Folder for saving data']
+datetime = exptInfo['08. Date and time']
+participant_id = exptInfo['01. Participant Code']
+experimentName = 'touch-comm-MNG'
+fm = FileManager(dataFolder, datetime, experimentName, participant_id)
+fm.generate_infoFile(exptInfo)
 
 # -- SETUP INTERFACE --
-
-outlineColour = [-1,-1,-1]
-textColour = [-1,-1,-1]
-startMessage = 'Press Space to start.'
-continueMessage = 'Press space for the next cue.'
-touchMessage = 'Follow the audio cue.'
-finishedMessage = 'The session has finished. Thank you!'
-
-toucherWin = visual.Window(fullscr = False, 
-                            allowGUI = False, 
-                            screen = exptInfo['04. Screen'],
-                            size = toucherScreenRes)
-
-toucherMessage = visual.TextStim(toucherWin,
-                                    text = '',
-                                    height = 0.15,
-                                    color = textColour,
-                                    units = 'norm',
-                                    pos = (0,-0))
-
-
-# -----
+toucherScreenRes = [int(i) for i in exptInfo['05. Screen resolution'].split(',')]
+ui = UserInterfaceExpt(exptInfo['04. Screen'], toucherScreenRes)
 
 # -- SETUP AUDIO --
+folderName = "sounds"
+am = AudioManager(folderName)
 
-pygame.mixer.pre_init() 
-pygame.mixer.init()
-thisCue = pygame.mixer.Sound('./sounds/attention - short.wav')
-goStopCue = pygame.mixer.Sound('./sounds/go-stop.wav')
-# durations within the audio file:
-silentLead = 0.064
-countDownDuration = 3.0
-stopDuration = 0.434
+# -- SETUP TRIGGER BOX CONNECTION --
+#tb = TriggerBox(exptInfo['06. Arduino serial port'])
 
-# ----
+# -- SETUP KINECT CONNECTION --
+kinectFilesName = exptInfo['08. Date and time'] + '_' + exptInfo['01. Participant Code'] + '_'
+scriptPath = r'C:\Program Files\Azure Kinect SDK v1.2.0\tools'
+outputDirectory = r'C:\Program Files\Azure Kinect SDK v1.2.0\tools\data'
+#outputDirectory = r'D:\data'
+kinect = KinectComm(scriptPath, outputDirectory)
 
-
-# -- make serial connection to arduino --
-
-arduino = serial.Serial(exptInfo['06. Arduino serial port'],9600,timeout = 0.05)
-ping(arduino,True)
-
-# --
 
 
 # -- RUN THE EXPERIMENT --
-
-exptClock=core.Clock()
+exptClock = core.Clock()
 exptClock.reset()
+ui.display_start()
 
-# wait for start trigger
-toucherMessage.text = startMessage
-toucherMessage.autoDraw = True
-event.clearEvents()
-toucherWin.flip()
+# wait for the experimenter to start the experiment
 startTriggerReceived = False
 while not startTriggerReceived:
-    toucherWin.flip()
-    for (key,keyTime) in event.getKeys(['space','escape'], timeStamped=exptClock):
+    for (key, keyTime) in event.getKeys(['space', 'escape'], timeStamped=exptClock):
         if key in ['escape']:
-            logEvent(keyTime,'experiment aborted',logFile)
-            dataFile.close(); logFile.close(); core.quit()
+            fm.abort(keyTime)
+            core.quit()
         if key in ['space']:
             exptClock.add(keyTime)
-            logEvent(0,'experiment started',logFile)
+            fm.logEvent(0, 'experiment started')
             startTriggerReceived = True
 
-# start the experiment
-for thisTrial in trials:
-    
+
+# run the trials
+for thisTrial in stimuli.trials:
+
     # get the cue for this trial
-    thisCue = pygame.mixer.Sound('./sounds/{} - short.wav' .format(thisTrial['cue']))
-    
-    # wait for experimenter
-    if trials.thisN == 0 or not exptInfo['03. Press to continue']:
+    thisTrialCue = thisTrial['cue']
+    thisTrialN = stimuli.trials.thisN
+    # set the corresponding sound
+    am.setSound(thisTrialCue)
+
+    # wait for experimenter to start the sequence (safety step)
+    if thisTrialN == 0 or not exptInfo['03. Press to continue']:
         continuePressed = True
         core.wait(2)
     else:
         continuePressed = False
-        toucherMessage.text = continueMessage
-        toucherMessage.autoDraw = True
-        event.clearEvents()
-        toucherWin.flip()
+        ui.display_continue()
+
     while not continuePressed:
-        toucherWin.flip()
-        for (key,keyTime) in event.getKeys(['space','escape'], timeStamped=exptClock):
+        for (key, keyTime) in event.getKeys(['space', 'escape'], timeStamped=exptClock):
             if key in ['escape']:
-                logEvent(keyTime,'experiment aborted',logFile)
-                dataFile.close(); logFile.close(); core.quit()
+                fm.abort(keyTime)
+                core.quit()
             if key in ['space']:
-                logEvent(keyTime,'experimenter pressed for cue',logFile)
+                fm.logEvent(keyTime, 'experimenter pressed for cue')
                 continuePressed = True
-    
+
     # cue toucher to perform touch
-    toucherMessage.text = touchMessage
-    event.clearEvents()
-    toucherWin.flip()
-    logEvent(exptClock.getTime(),'toucher cue {}' .format(thisTrial['cue']),logFile)
-    soundCh = thisCue.play()
+    ui.display_touch()
+    fm.logEvent(exptClock.getTime(), 'toucher cue {}'.format(thisTrialCue))
+    soundCh = am.play()
     while soundCh.get_busy():
-        for (key,keyTime) in event.getKeys(['escape'], timeStamped=exptClock):
+        for (key, keyTime) in event.getKeys(['escape'], timeStamped=exptClock):
             soundCh.stop()
-            logEvent(keyTime,'experiment aborted',logFile)
-            dataFile.close(); logFile.close(); core.quit()
-    
-    signalNo = items.index(thisTrial['cue'])
-    send_signal(arduino,signalNo,True);
+            fm.abort(keyTime)
+            core.quit()
+
+    # start to execute the arduino task
+    signalNo = items.index(thisTrialCue)
+    #arduino.send_signal(signalNo, True)
+
+    # start to record with the kinect
+    kinect.start_recording(kinectFilesName + str(thisTrialN) + '_' + thisTrialCue)
+
     countDownStartTime = exptClock.getTime()
-    soundCh = goStopCue.play()
-    logEvent(countDownStartTime + silentLead,'countdown to touch',logFile)
-    logEvent(countDownStartTime + silentLead + countDownDuration,'start touching',logFile)
+    soundCh = am.playStopCue()
+    fm.logEvent(countDownStartTime + am.silentLead, 'countdown to touch')
+    fm.logEvent(countDownStartTime + am.silentLead + am.countDownDuration, 'start touching')
     while soundCh.get_busy():
-        for (key,keyTime) in event.getKeys(['escape'], timeStamped=exptClock):
+        for (key, keyTime) in event.getKeys(['escape'], timeStamped=exptClock):
             soundCh.stop()
-            logEvent(keyTime,'experiment aborted',logFile)
-            dataFile.close(); logFile.close(); core.quit()
-    logEvent(exptClock.getTime() - stopDuration,'stop touching',logFile)
-    
-    
-    dataFile.write('{},{}\n' .format(trials.thisN+1,thisTrial['cue']))
-    logEvent(exptClock.getTime(),'{} of {} complete' .format(trials.thisN+1, trials.nTotal),logFile)
+            fm.abort(keyTime)
+            core.quit()
+    fm.logEvent(exptClock.getTime() - am.stopDuration, 'stop touching')
+    fm.dataWrite(thisTrialN + 1, thisTrialCue)
+    fm.logEvent(exptClock.getTime(), '{} of {} complete'.format(thisTrialN + 1, stimuli.trials.nTotal))
 
-# -----
+    kinect.stop_recording()
 
-# prompt at the end of the experiment
-toucherMessage.text = finishedMessage
-event.clearEvents()
-toucherMessage.draw()
-logEvent(exptClock.getTime(),'experiment finished',logFile)
-toucherWin.flip()
-core.wait(2)
-dataFile.close(); logFile.close()
-toucherWin.close()
+# end of the experiment
+fm.end(exptClock.getTime())
+ui.end()
 core.quit()
