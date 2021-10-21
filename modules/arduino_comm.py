@@ -1,50 +1,36 @@
+import time
 
 import serial
+
+from libraries.triggerbox import TriggerBox
 
 # Interact with arduino connected through USB port
 
 
 class ArduinoComm:
 
-    def __init__(self, _port):
-        self.port = _port
-        try:
-            self.connArduino = serial.Serial(self.port, 9600, timeout=0.05)
-            self.ping(True)
-        except serial.SerialException:
-            print("Port '{0}' not connected!".format(self.port))
+    def __init__(self):
+        self.trigger = TriggerBox()
+        self.pulse = self.trigger.make_analog_signal(channel=3, voltage=5, duration=20)  # in ms
+        self.running = self.trigger.make_analog_signal(channel=3, voltage=5, duration=0)  # infinite
+        self.stop = self.trigger.make_analog_signal(channel=3, voltage=0, duration=0)  # infinite
 
-    def ping(self, printMessages):
-        arduinoSays = ''
-        while not arduinoSays == 'ack':
-            self.connArduino.write('ping'.encode('utf-8'))
-            arduinoSays = self.connArduino.readline().decode('utf-8').strip()
-            if printMessages and len(arduinoSays) > 0:
-                print('arduino: {}' .format(arduinoSays))
+        self.trigger.ser.write(self.stop)
 
-        return arduinoSays
+    def send_pulses(self, nb_pulse):
 
-    def send_signal(self, signalNo, printMessages):
-        arduinoSays = ''
-        while not arduinoSays == 'signal':
-            self.connArduino.write('signal'.encode('utf-8'))
-            arduinoSays = self.connArduino.readline().decode('utf-8').strip()
-            if printMessages and len(arduinoSays) > 0:
-                print('arduino: {}' .format(arduinoSays))
+        for current_pulse in range(1, nb_pulse):
+            self.trigger.ser.write(self.pulse)
+            time.sleep(0.040)  # Sleep for 20 milliseconds
 
-        signalSent = False
-        while not signalSent:
-            self.connArduino.write(str(int(signalNo)).encode('utf-8'))
-            arduinoSays = self.connArduino.readline().decode('utf-8').strip()
-            if printMessages and len(arduinoSays) > 0:
-                print('arduino: {}' .format(arduinoSays))
-            if int(arduinoSays) == int(signalNo):
-                signalSent = True
+        self.trigger.ser.write(self.running)
 
-        return arduinoSays
+        return self
 
+    def stop_recording(self):
+        self.trigger.ser.write(self.stop)
 
-
+        return self
 
 
 

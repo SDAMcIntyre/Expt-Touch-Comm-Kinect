@@ -1,9 +1,7 @@
-
 import os
+import time
 
 from psychopy import core, data, event
-
-from libraries.triggerbox import TriggerBox
 
 from modules.arduino_comm import ArduinoComm
 from modules.kinect_comm import KinectComm
@@ -15,19 +13,20 @@ from modules.touch_stimuli_management import TouchStimuli
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
 # -- GET INPUT FROM THE EXPERIMENTER --
-exptInfo = {'01. Participant Code': 'ST01',
-            '02. Number of repeats': 30,
-            '03. Press to continue': False,
-            '04. Screen': 0,
-            '05. Screen resolution': '800,600',
-            '06. Arduino serial port': 'COM3',
+exptInfo = {'01. Participant Code': 'ST03',
+            '02. Unit Number': '1',
+            '03. Number of repeats': 30,
+            '04. Press to continue': False,
+            '05. Screen': 0,
+            '06. Screen resolution': '800,600',
             '07. Folder for saving data': 'data',
             '08. Date and time': data.getDateStr(format='%Y-%m-%d_%H-%M-%S')}
 exptInfo = ui_get_initialData(exptInfo)
 
 # -- SETUP STIMULUS RANDOMISATION AND CONTROL --
 items = ['attention', 'gratitude', 'love', 'sadness', 'happiness', 'calming']
-nb_repeat = exptInfo['02. Number of repeats']
+#items_nbPulse = [1, 2, 3, 4, 5, 6]
+nb_repeat = exptInfo['03. Number of repeats']
 correctText = ['incorrect', 'correct']
 stimuli = TouchStimuli(items, nb_repeat, correctText)
 
@@ -40,24 +39,21 @@ fm = FileManager(dataFolder, datetime, experimentName, participant_id)
 fm.generate_infoFile(exptInfo)
 
 # -- SETUP INTERFACE --
-toucherScreenRes = [int(i) for i in exptInfo['05. Screen resolution'].split(',')]
-ui = UserInterfaceExpt(exptInfo['04. Screen'], toucherScreenRes)
+toucherScreenRes = [int(i) for i in exptInfo['06. Screen resolution'].split(',')]
+ui = UserInterfaceExpt(exptInfo['05. Screen'], toucherScreenRes)
 
 # -- SETUP AUDIO --
 folderName = "sounds"
 am = AudioManager(folderName)
 
 # -- SETUP TRIGGER BOX CONNECTION --
-#tb = TriggerBox(exptInfo['06. Arduino serial port'])
+ac = ArduinoComm()
 
 # -- SETUP KINECT CONNECTION --
-kinectFilesName = exptInfo['08. Date and time'] + '_' + exptInfo['01. Participant Code'] + '_'
 scriptPath = r'C:\Program Files\Azure Kinect SDK v1.2.0\tools'
 outputDirectory = r'C:\Program Files\Azure Kinect SDK v1.2.0\tools\data'
-#outputDirectory = r'D:\data'
+# outputDirectory = r'D:\data'
 kinect = KinectComm(scriptPath, outputDirectory)
-
-
 
 # -- RUN THE EXPERIMENT --
 exptClock = core.Clock()
@@ -76,18 +72,19 @@ while not startTriggerReceived:
             fm.logEvent(0, 'experiment started')
             startTriggerReceived = True
 
-
 # run the trials
 for thisTrial in stimuli.trials:
 
     # get the cue for this trial
     thisTrialCue = thisTrial['cue']
     thisTrialN = stimuli.trials.thisN
+    thisTrialNbPulse = stimuli.get_nb_pulse(thisTrialCue)
+
     # set the corresponding sound
     am.setSound(thisTrialCue)
 
     # wait for experimenter to start the sequence (safety step)
-    if thisTrialN == 0 or not exptInfo['03. Press to continue']:
+    if thisTrialN == 0 or not exptInfo['04. Press to continue']:
         continuePressed = True
         core.wait(2)
     else:
@@ -114,11 +111,17 @@ for thisTrial in stimuli.trials:
             core.quit()
 
     # start to execute the arduino task
-    signalNo = items.index(thisTrialCue)
-    #arduino.send_signal(signalNo, True)
+    ac.send_pulses(thisTrialNbPulse)
 
     # start to record with the kinect
-    kinect.start_recording(kinectFilesName + str(thisTrialN) + '_' + thisTrialCue)
+    kinectFilesName = (data.getDateStr(format='%Y-%m-%d_%H-%M-%S') + '_' +
+                       exptInfo['01. Participant Code'] + '_' +
+                       'unit' + exptInfo['02. Unit Number'] + '_' +
+                       str(thisTrialN+1) + '_' + thisTrialCue)
+    kinect_ct = time.time()
+    kinect.start_recording(kinectFilesName)
+    kinect_ct = (time.time() - kinect_ct)*1000
+    fm.logEvent(exptClock.getTime(), 'start kinect consumes (ms): {}'.format(kinect_ct))
 
     countDownStartTime = exptClock.getTime()
     soundCh = am.playStopCue()
@@ -130,10 +133,14 @@ for thisTrial in stimuli.trials:
             fm.abort(keyTime)
             core.quit()
     fm.logEvent(exptClock.getTime() - am.stopDuration, 'stop touching')
-    fm.dataWrite(thisTrialN + 1, thisTrialCue)
+    fm.dataWrite(thisTrialN + 1, thisTrialCue, thisTrialNbPulse)
     fm.logEvent(exptClock.getTime(), '{} of {} complete'.format(thisTrialN + 1, stimuli.trials.nTotal))
 
+    # stop recording
     kinect.stop_recording()
+
+    # start to execute the arduino task
+    ac.stop_recording()
 
 # end of the experiment
 fm.end(exptClock.getTime())

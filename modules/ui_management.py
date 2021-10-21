@@ -110,7 +110,7 @@ def ui_get_initialData(exptInfo):
     dlg = gui.DlgFromDict(exptInfo, title='Experiment details', fixed=['08. Date and time'])
 
     # update the time when the user pressed enter:
-    #exptInfo['08. Date and time'] = data.getDateStr(format='%Y-%m-%d_%H-%M-%S')
+    exptInfo['09. Date and time'] = data.getDateStr(format='%Y-%m-%d_%H-%M-%S')
     if dlg.OK:
         pass  # continue
     else:

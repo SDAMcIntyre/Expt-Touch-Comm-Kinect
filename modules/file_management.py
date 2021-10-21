@@ -13,7 +13,7 @@ class FileManager:
         self.fileName_core = self.dataFolder + experimentName + '_' + _datetime + '_neural_P' + _participant_ID
         try:
             self.dataFile = open(self.fileName_core + '_communication-data.csv', 'w')
-            self.dataFile.write('trial,cued\n')
+            self.dataFile.write('trial,cued,triggerNbPulse\n')
         except IOError:
             input("Could not open" + self.fileName_core + '_communication-data.csv' + " file!")
 
@@ -44,8 +44,8 @@ class FileManager:
 
         return self
 
-    def dataWrite(self, trial_id, trialCue):
-        self.dataFile.write('{},{}\n'.format(trial_id, trialCue))
+    def dataWrite(self, trial_id, trialCue, nbPulseCue):
+        self.dataFile.write('{},{},{}\n'.format(trial_id, trialCue, nbPulseCue))
 
         return self
 
