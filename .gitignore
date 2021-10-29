@@ -118,3 +118,6 @@ data/
 
 # pycharm settings
 .idea/
+
+# Mac OS
+.DS_Store
