@@ -13,7 +13,7 @@ from modules.touch_stimuli_management import TouchStimuli
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
 # -- GET INPUT FROM THE EXPERIMENTER --
-exptInfo = {'01. Participant Code': 'ST07',
+exptInfo = {'01. Participant Code': 'ST09',
             '02. Unit Number': '0',
             '03. Number of repeats': 30,
             '04. Press to continue': False,
@@ -140,7 +140,8 @@ for thisTrial in stimuli.trials:
     kinect.stop_recording()
 
     # start to execute the arduino task
-    ac.stop_recording()
+    #ac.stop_recording()
+    ac.trigger.ser.write(ac.pulse)
 
 # end of the experiment
 fm.end(exptClock.getTime())
