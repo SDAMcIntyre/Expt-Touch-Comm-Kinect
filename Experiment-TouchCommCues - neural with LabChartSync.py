@@ -13,7 +13,7 @@ from modules.touch_stimuli_management import TouchStimuli
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
 # -- GET INPUT FROM THE EXPERIMENTER --
-exptInfo = {'01. Participant Code': 'ST09',
+exptInfo = {'01. Participant Code': 'ST10',
             '02. Unit Number': '0',
             '03. Number of repeats': 30,
             '04. Press to continue': False,
@@ -66,6 +66,8 @@ while not startTriggerReceived:
     for (key, keyTime) in event.getKeys(['space', 'escape'], timeStamped=exptClock):
         if key in ['escape']:
             fm.abort(keyTime)
+            ac.trigger.ser.write(ac.trigger.make_cancel_signal(3))
+            ac.trigger.ser.close()
             core.quit()
         if key in ['space']:
             exptClock.add(keyTime)
@@ -95,6 +97,8 @@ for thisTrial in stimuli.trials:
         for (key, keyTime) in event.getKeys(['space', 'escape'], timeStamped=exptClock):
             if key in ['escape']:
                 fm.abort(keyTime)
+                ac.trigger.ser.write(ac.trigger.make_cancel_signal(3))
+                ac.trigger.ser.close()
                 core.quit()
             if key in ['space']:
                 fm.logEvent(keyTime, 'experimenter pressed for cue')
@@ -108,10 +112,10 @@ for thisTrial in stimuli.trials:
         for (key, keyTime) in event.getKeys(['escape'], timeStamped=exptClock):
             soundCh.stop()
             fm.abort(keyTime)
+            ac.trigger.ser.write(ac.trigger.make_cancel_signal(3))
+            ac.trigger.ser.close()
             core.quit()
 
-    # start to execute the arduino task
-    ac.send_pulses(thisTrialNbPulse)
 
     # start to record with the kinect
     kinectFilesName = (data.getDateStr(format='%Y-%m-%d_%H-%M-%S') + '_' +
@@ -122,28 +126,44 @@ for thisTrial in stimuli.trials:
     kinect.start_recording(kinectFilesName)
     kinect_ct = (time.time() - kinect_ct)*1000
     fm.logEvent(exptClock.getTime(), 'start kinect consumes (ms): {}'.format(kinect_ct))
+    #time.sleep(0.5)
+
+    ac_start_sent = False
 
     countDownStartTime = exptClock.getTime()
     soundCh = am.playStopCue()
+    # start to execute the arduino task
+    ac.send_pulses(thisTrialNbPulse)
+
     fm.logEvent(countDownStartTime + am.silentLead, 'countdown to touch')
     fm.logEvent(countDownStartTime + am.silentLead + am.countDownDuration, 'start touching')
+
     while soundCh.get_busy():
+       # while exptClock.getTime() < countDownStartTime + am.silentLead:
+            # if ac_start_sent == False:
+                # ac.send_pulses(thisTrialNbPulse)
+
         for (key, keyTime) in event.getKeys(['escape'], timeStamped=exptClock):
             soundCh.stop()
             fm.abort(keyTime)
+            ac.trigger.ser.write(ac.trigger.make_cancel_signal(3))
+            ac.trigger.ser.close()
             core.quit()
     fm.logEvent(exptClock.getTime() - am.stopDuration, 'stop touching')
     fm.dataWrite(thisTrialN + 1, thisTrialCue, thisTrialNbPulse)
     fm.logEvent(exptClock.getTime(), '{} of {} complete'.format(thisTrialN + 1, stimuli.trials.nTotal))
 
+    # start to execute the arduino task
+    ac.stop_recording()
+    # ac.trigger.ser.write(ac.pulse)
+
     # stop recording
     kinect.stop_recording()
 
-    # start to execute the arduino task
-    #ac.stop_recording()
-    ac.trigger.ser.write(ac.pulse)
 
 # end of the experiment
 fm.end(exptClock.getTime())
 ui.end()
+ac.trigger.ser.write(ac.trigger.make_cancel_signal(3))
+ac.trigger.ser.close()
 core.quit()
