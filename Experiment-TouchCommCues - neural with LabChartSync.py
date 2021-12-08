@@ -104,6 +104,17 @@ for thisTrial in stimuli.trials:
                 fm.logEvent(keyTime, 'experimenter pressed for cue')
                 continuePressed = True
 
+    # start to record with the kinect
+    kinectFilesName = (data.getDateStr(format='%Y-%m-%d_%H-%M-%S') + '_' +
+                       exptInfo['01. Participant Code'] + '_' +
+                       'unit' + exptInfo['02. Unit Number'] + '_' +
+                       str(thisTrialN+1) + '_' + thisTrialCue)
+    kinect_ct = time.time()
+    kinect.start_recording(kinectFilesName)
+    kinect_ct = (time.time() - kinect_ct)*1000
+    fm.logEvent(exptClock.getTime(), 'start kinect consumes (ms): {}'.format(kinect_ct))
+    core.wait(0.2) # 200 ms pause
+
     # cue toucher to perform touch
     ui.display_touch()
     fm.logEvent(exptClock.getTime(), 'toucher cue {}'.format(thisTrialCue))
@@ -116,20 +127,6 @@ for thisTrial in stimuli.trials:
             ac.trigger.ser.close()
             core.quit()
 
-
-    # start to record with the kinect
-    kinectFilesName = (data.getDateStr(format='%Y-%m-%d_%H-%M-%S') + '_' +
-                       exptInfo['01. Participant Code'] + '_' +
-                       'unit' + exptInfo['02. Unit Number'] + '_' +
-                       str(thisTrialN+1) + '_' + thisTrialCue)
-    kinect_ct = time.time()
-    kinect.start_recording(kinectFilesName)
-    kinect_ct = (time.time() - kinect_ct)*1000
-    fm.logEvent(exptClock.getTime(), 'start kinect consumes (ms): {}'.format(kinect_ct))
-    #time.sleep(0.5)
-
-    ac_start_sent = False
-
     countDownStartTime = exptClock.getTime()
     soundCh = am.playStopCue()
     # start to execute the arduino task
@@ -139,10 +136,6 @@ for thisTrial in stimuli.trials:
     fm.logEvent(countDownStartTime + am.silentLead + am.countDownDuration, 'start touching')
 
     while soundCh.get_busy():
-       # while exptClock.getTime() < countDownStartTime + am.silentLead:
-            # if ac_start_sent == False:
-                # ac.send_pulses(thisTrialNbPulse)
-
         for (key, keyTime) in event.getKeys(['escape'], timeStamped=exptClock):
             soundCh.stop()
             fm.abort(keyTime)
