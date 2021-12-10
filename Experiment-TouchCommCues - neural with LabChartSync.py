@@ -13,7 +13,7 @@ from modules.touch_stimuli_management import TouchStimuli
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
 # -- GET INPUT FROM THE EXPERIMENTER --
-exptInfo = {'01. Participant Code': 'ST11',
+exptInfo = {'01. Participant Code': 'ST12',
             '02. Unit Number': '0',
             '03. Number of repeats': 30,
             '04. Press to continue': False,
