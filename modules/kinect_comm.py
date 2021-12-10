@@ -3,6 +3,7 @@ import subprocess
 from subprocess import Popen, PIPE, CREATE_NEW_CONSOLE
 import keyboard
 import time
+from psychopy import data
 
 
 # Interact with the Virginia's software
@@ -39,3 +40,10 @@ class KinectComm:
 
     # import signal
     # self.p.send_signal(signal.CTRL_C_EVENT)
+
+    def record_trial(self, filename, duration):
+        filename = (data.getDateStr(format='%Y-%m-%d_%H-%M-%S') + '_' + filename)
+        self.start_recording(filename)
+        time.sleep(duration)
+        self.stop_recording()
+        return self
