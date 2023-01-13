@@ -121,3 +121,6 @@ data/
 
 # Mac OS
 .DS_Store
+
+# R project files
+.Rproj.user
