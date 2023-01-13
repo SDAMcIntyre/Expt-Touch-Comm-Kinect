@@ -122,5 +122,6 @@ data/
 # Mac OS
 .DS_Store
 
-# R project files
+# R files
 .Rproj.user
+ST-analysis/.Rhistory
