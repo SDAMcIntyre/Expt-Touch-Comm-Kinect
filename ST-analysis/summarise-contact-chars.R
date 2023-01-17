@@ -27,14 +27,13 @@ theme_set(theme_bw(base_size = 14))
 
 #### plot a single session ####
 
-#read in the data 
 ex <- read_csv(paste0(CONTACT_DATA_FOLDER, "2022-06-17/unit5/2022-06-17_18-15-56_controlled-touch-MNG_ST16_5_block1.csv"))
 
-plot_session <- function(df) {
+plot_raw_session <- function(df) {
   
   feature_plot <- function(df, feature, y_axis_label) {
     df %>% 
-      mutate(trial_id = as.character(trial_id)) %>%   
+      mutate(trial_id = as.character(trial_id)) %>% 
       ggplot(aes(x = t, y = .data[[feature]], colour = trial_id)) +
       geom_point(size = 0.2) +
       labs(y = y_axis_label) +
@@ -49,7 +48,7 @@ plot_session <- function(df) {
   velLat <- feature_plot(df, "velLatSmooth", "LatV cm/s")
   velLong <- feature_plot(df, "velLongSmooth", "LongV cm/s")
   velVert <- feature_plot(df, "velVertSmooth", "VertV cm/s")
- 
+  
   iff <- df %>% 
     mutate(
       spike_label = if_else(spike == 1, "|", ""),
@@ -62,59 +61,132 @@ plot_session <- function(df) {
     theme(legend.position = "none")
   
   area / depth / velAbs / velLat / velLong / velVert / iff + 
-    plot_layout(guides = 'collect')
+    plot_layout(guides = 'collect') 
 }
 
-plot_session(ex)
+plot_raw_session(ex)
 
 
-#### read in all the data ####
+#### read in semi-controlled data ####
 
 data_files_controlled <- list.files(CONTACT_DATA_FOLDER, "controlled", full.names = TRUE, recursive = TRUE)
 
-data_files_expressions <- list.files(CONTACT_DATA_FOLDER, full.names = TRUE, recursive = TRUE) %>% 
-  setdiff(data_files_controlled)
-
 stim_files_controlled <- list.files(STIM_INFO_FOLDER, "stimuli", full.names = TRUE, recursive = TRUE)
 
-stimuli_controlled <- tibble()
-for (stimfile in stim_files_controlled) {
-  stimuli_controlled <- rbind(
-    stimuli_controlled,
-    read_csv(stimfile)
-  )
-}
-
-data_controlled <- tibble()
-for (f in data_files_controlled) {
+merge_session_data_w_stiminfo <- function(data_file_list, stim_file_list) {
   
-  fname <- basename(f)
-  session_datetime <- str_extract(fname, "([0-9]|-|_){19}")
-  stim_idx <- which(str_detect(stimuli_controlled$kinect_recording, session_datetime))
-  session_stim <- stimuli_controlled[stim_idx,]
-  session_data <- read_csv(f)
-  trial_ids <- na.omit(unique(session_data$trial_id))
-  
-  if (nrow(session_stim) == length(trial_ids)) {
-    session_data <- session_data %>% 
-      mutate(trial = NA_integer_) 
-    for (trial_n in seq_along(trial_ids)) {
-      session_data$trial[session_data$trial_id == trial_ids[trial_n]] <- session_stim$trial[trial_n]
+  # read in the stim files
+  read_all_stim_files <- function(file_list) {
+    stim_file_contents <- tibble()
+    for (stimfile in stim_files_controlled) {
+      stim_file_contents <- rbind(
+        stim_file_contents,
+        read_csv(stimfile, show_col_types = FALSE)
+      )
     }
-    session_data <- full_join(session_data, session_stim)
-  } else {
-    warning("number of stimuli does not match")
+    stim_file_contents %>% 
+      mutate(kinect_recording = basename(str_replace_all(kinect_recording, "\\\\", "/")) )
   }
   
-  data_controlled <- rbind(
-    data_controlled,
-    session_data %>% mutate(
-      filename = fname,
-      kinect_recording = basename(str_replace_all(kinect_recording, "\\\\", "/")),
-      unit = str_extract(fname, "ST[0-9]+_[0-9]+")
-      )
-    )
+  stimuli_controlled <- read_all_stim_files(stim_file_list)
+  
+  # rad in the data files and match with stim files
+  data_controlled <- tibble()
+  for (f in data_files_controlled) {
+    print(f)
+    fname <- basename(f)
+    
+    # match based on date/time stamp to find stim info for this session
+    session_datetime <- str_extract(fname, "([0-9]|-|_){19}")
+    stim_idx <- which(str_detect(stimuli_controlled$kinect_recording, session_datetime))
+    session_stim <- stimuli_controlled[stim_idx,]
+    
+    # read data
+    session_data <- read_csv(f, show_col_types = FALSE) 
+    
+    # get the trial_ids based on the LED visible on the camera
+    trial_ids <- na.omit(unique(session_data$trial_id))
+    
+    # check if the stim file has the same number of trials
+    if (nrow(session_stim) == length(trial_ids)) {
+      
+      # create the trial variable in the session data file to later merge with the stim info
+      session_data <- session_data %>% 
+        mutate(trial = NA_integer_) 
+      
+      # fill the new trial variable with labels from the session stim info
+      for (trial_n in seq_along(trial_ids)) {
+        session_data$trial[session_data$trial_id == trial_ids[trial_n]] <- session_stim$trial[trial_n]
+      }
+      # merge session data with stim info
+      session_data <- full_join(session_data, session_stim, by = "trial") %>% 
+        #  add filename metadata and unique stim description to new variables 
+        mutate(
+        filename = fname,
+        unit = str_extract(fname, "ST[0-9]+_[0-9]+"),
+        stim_desc = if_else( is.na(trial_id), NA_character_,
+          paste0(
+          trial_id, ".",
+          " ", type, 
+          " speed", speed, 
+          " ", str_extract(contact_area, "(finger)|(hand)"),
+          " ", force )
+      ))
+      
+    } else {
+      warning("number of stimuli does not match")
+      print("number of stimuli does not match")
+    }
+    
+    # update to all data 
+    data_controlled <- rbind(data_controlled, session_data )
+  }
+  data_controlled
 }
+
+data_controlled <- merge_session_data_w_stiminfo(data_files_controlled, stim_files_controlled)
+
+#### plot semi-controlled data ####
+
+plot_session <- function(df, title = "") {
+  
+  feature_plot <- function(df, feature, y_axis_label) {
+    df %>% 
+      ggplot(aes(x = t, y = .data[[feature]], colour = stim_desc)) +
+      geom_point(size = 0.2) +
+      labs(y = y_axis_label) +
+      theme(axis.title.x=element_blank(),
+            axis.text.x=element_blank(),
+            axis.ticks.x=element_blank())
+  }
+  
+  area <- feature_plot(df, "areaSmooth", expression("Contact cm"^2))
+  depth <- feature_plot(df, "depthSmooth", "Depth cm")
+  velAbs <- feature_plot(df, "velAbsSmooth", "AbsV cm/s")
+  velLat <- feature_plot(df, "velLatSmooth", "LatV cm/s")
+  velLong <- feature_plot(df, "velLongSmooth", "LongV cm/s")
+  velVert <- feature_plot(df, "velVertSmooth", "VertV cm/s")
+  
+  iff <- df %>% 
+    mutate(
+      spike_label = if_else(spike == 1, "|", ""),
+      trial_id = as.character(trial_id)
+    ) %>% 
+    ggplot(aes(x = t, y = IFF, colour = trial_id)) +
+    geom_line(linewidth = 0.2) +
+    geom_text(aes(y = -max(IFF)/5, label = spike_label), alpha = 0.5, size = 8) +
+    labs(y = "IFF Hz", x = "Seconds") +
+    theme(legend.position = "none")
+  
+  area / depth / velAbs / velLat / velLong / velVert / iff + 
+    plot_layout(guides = 'collect') + 
+    #theme(legend.position = "bottom") +
+    plot_annotation(title = title)
+}
+
+data_controlled %>% 
+  filter(filename == data_controlled$filename[1]) %>%
+  plot_session(title = data_controlled$filename[1])
 
 # area
 area <- data_controlled %>% 
@@ -193,3 +265,6 @@ velVert <- data_controlled %>%
        y = "Vertical velocity (cm/s)",
        x = " Intensity instruction")
 
+#### read in expressions data ####
+data_files_expressions <- list.files(CONTACT_DATA_FOLDER, full.names = TRUE, recursive = TRUE) %>%
+  setdiff(data_files_controlled)
