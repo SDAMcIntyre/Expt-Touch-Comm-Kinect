@@ -189,9 +189,6 @@ ex %>%
   
 
 # all sessions
-# lags <- data_controlled %>%
-#   group_by(filename) %>% 
-#   summarise(experimenter_lag = estimate_experimenter_lag(areaSmooth, trial_id))
 
 result <- list()
 for (session_n in seq_along(unique(data_controlled$filename))) {
@@ -240,29 +237,29 @@ for (session_n in seq_along(unique(data_controlled$filename))) {
 
 plot_folder <- "figures_cross-corr-stim-align/"
 for (r in seq_along(result)) {
+# for (r in 1:2) {
+  print(paste0(r, " of ", length(result), ": ", result[[r]]$filename ))
+  
   # cross correlation
-  result[[r]]$plot_cc
-  plot_name <- result[[r]]$filename %>% 
+  print(result[[r]]$plot_cc)
+  result[[r]]$filename %>% 
     str_replace("\\.csv", "_cc.png") %>% 
-    paste0(plot_folder, .)
-  ggsave(plot_name, width = 8, height = 6)
-  while (!is.null(dev.list()))  dev.off()  
-  
+    paste0(plot_folder, .) %>% 
+    ggsave(width = 8, height = 6)
+
   # before
-  result[[r]]$plot_before
-  plot_name <- result[[r]]$filename %>% 
+  print(result[[r]]$plot_before)
+  result[[r]]$filename %>% 
     str_replace("\\.csv", "_before.png") %>% 
-    paste0(plot_folder, .)
-  ggsave(plot_name, width = 20, height = 8)
-  while (!is.null(dev.list()))  dev.off()
-  
+    paste0(plot_folder, .) %>% 
+    ggsave(width = 20, height = 8)
+
   #after
-  result[[r]]$plot_after
-  plot_name <- result[[r]]$filename %>% 
+  print(result[[r]]$plot_after)
+  result[[r]]$filename %>% 
     str_replace("\\.csv", "_after.png") %>% 
-    paste0(plot_folder, .)
-  ggsave(plot_name, width = 20, height = 8)
-  while (!is.null(dev.list()))  dev.off()
+    paste0(plot_folder, .) %>% 
+    ggsave(width = 20, height = 8)
 }
 
 
