@@ -180,9 +180,46 @@ plot_session <- function(df, title = "") {
     plot_annotation(title = title)
 }
 
+# example single session
+ex_fname <- "2022-06-22_15-30-28_controlled-touch-MNG_ST18_1_block1.csv"
+ex <- data_controlled %>% 
+  filter(filename == ex_fname)
+
+ex %>% plot_session(ex_fname)
+
+estimate_experimenter_lag <- function(contact, led) {
+  contact_flag <- if_else(contact == 0, 0, 1)
+  led_flag <- if_else(is.na(led), 0, 1)
+  
+  cc_contact_led <- ccf(contact_flag, led_flag, lag.max = 2000, plot = FALSE)
+  cc_contact_led$lag[which(cc_contact_led$acf == max(cc_contact_led$acf))]
+}
+
+estimate_experimenter_lag(ex$areaSmooth, ex$trial_id)
+
+lags <- data_controlled %>%
+  group_by(filename) %>% 
+  summarise(experimenter_lag = estimate_experimenter_lag(areaSmooth, trial_id))
+
+ex %>%
+  filter(between(t,0,20)) %>% 
+  mutate(zero_contact = if_else(areaSmooth == 0, "x", "")) %>% 
+  feature_plot("areaSmooth", expression("Contact cm"^2), "stim_desc") +
+  geom_text(aes(y = -1, label = zero_contact), alpha = 0.5, size = 8)
+  
+estimate_min_isi <- function(contact, trial) {
+  get_zero_runs <- function(x) {
+    all_runs <- rle(x)
+    all_runs[["lengths"]][all_runs[["values"]] == 0]
+  }
+  no_contact_runs <- get_zero_runs(contact)
+  ordered_runs <- no_contact_runs[order(no_contact_runs, decreasing = TRUE)]
+  min(ordered_runs[1:n_distinct(trial, na.rm = TRUE)])
+}
+
 data_controlled %>% 
-  filter(filename == data_controlled$filename[1]) %>%
-  plot_session(title = data_controlled$filename[1])
+  group_by(filename) %>% 
+  summarise(min_isi = estimate_min_isi(area, trial)) %>% View
 
 # area
 area <- data_controlled %>% 
