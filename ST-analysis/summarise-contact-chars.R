@@ -29,25 +29,26 @@ theme_set(theme_bw(base_size = 14))
 
 ex <- read_csv(paste0(CONTACT_DATA_FOLDER, "2022-06-17/unit5/2022-06-17_18-15-56_controlled-touch-MNG_ST16_5_block1.csv"))
 
+feature_plot <- function(df, feature, y_axis_label, trial) {
+  df %>% 
+    ggplot(aes(x = t, y = .data[[feature]], colour = as.character(.data[[trial]]))) +
+    geom_point(size = 0.2) +
+    labs(y = y_axis_label) 
+}
+
 plot_raw_session <- function(df) {
   
-  feature_plot <- function(df, feature, y_axis_label) {
-    df %>% 
-      mutate(trial_id = as.character(trial_id)) %>% 
-      ggplot(aes(x = t, y = .data[[feature]], colour = trial_id)) +
-      geom_point(size = 0.2) +
-      labs(y = y_axis_label) +
-      theme(axis.title.x=element_blank(),
-            axis.text.x=element_blank(),
-            axis.ticks.x=element_blank())
-  }
+  theme_no_x <- theme(
+    axis.title.x=element_blank(),
+    axis.text.x=element_blank(),
+    axis.ticks.x=element_blank())
   
-  area <- feature_plot(df, "areaSmooth", expression("Contact cm"^2))
-  depth <- feature_plot(df, "depthSmooth", "Depth cm")
-  velAbs <- feature_plot(df, "velAbsSmooth", "AbsV cm/s")
-  velLat <- feature_plot(df, "velLatSmooth", "LatV cm/s")
-  velLong <- feature_plot(df, "velLongSmooth", "LongV cm/s")
-  velVert <- feature_plot(df, "velVertSmooth", "VertV cm/s")
+  area <- feature_plot(df, "areaSmooth", expression("Contact cm"^2), "trial_id") + theme_no_x
+  depth <- feature_plot(df, "depthSmooth", "Depth cm", "trial_id") + theme_no_x
+  velAbs <- feature_plot(df, "velAbsSmooth", "AbsV cm/s", "trial_id") + theme_no_x
+  velLat <- feature_plot(df, "velLatSmooth", "LatV cm/s", "trial_id") + theme_no_x
+  velLong <- feature_plot(df, "velLongSmooth", "LongV cm/s", "trial_id") + theme_no_x
+  velVert <- feature_plot(df, "velVertSmooth", "VertV cm/s", "trial_id") + theme_no_x
   
   iff <- df %>% 
     mutate(
@@ -150,22 +151,17 @@ data_controlled <- merge_session_data_w_stiminfo(data_files_controlled, stim_fil
 
 plot_session <- function(df, title = "") {
   
-  feature_plot <- function(df, feature, y_axis_label) {
-    df %>% 
-      ggplot(aes(x = t, y = .data[[feature]], colour = stim_desc)) +
-      geom_point(size = 0.2) +
-      labs(y = y_axis_label) +
-      theme(axis.title.x=element_blank(),
-            axis.text.x=element_blank(),
-            axis.ticks.x=element_blank())
-  }
+  theme_no_x <- theme(
+    axis.title.x=element_blank(),
+    axis.text.x=element_blank(),
+    axis.ticks.x=element_blank())
   
-  area <- feature_plot(df, "areaSmooth", expression("Contact cm"^2))
-  depth <- feature_plot(df, "depthSmooth", "Depth cm")
-  velAbs <- feature_plot(df, "velAbsSmooth", "AbsV cm/s")
-  velLat <- feature_plot(df, "velLatSmooth", "LatV cm/s")
-  velLong <- feature_plot(df, "velLongSmooth", "LongV cm/s")
-  velVert <- feature_plot(df, "velVertSmooth", "VertV cm/s")
+  area <- feature_plot(df, "areaSmooth", expression("Contact cm"^2), "stim_desc") + theme_no_x
+  depth <- feature_plot(df, "depthSmooth", "Depth cm", "stim_desc") + theme_no_x
+  velAbs <- feature_plot(df, "velAbsSmooth", "AbsV cm/s", "stim_desc") + theme_no_x
+  velLat <- feature_plot(df, "velLatSmooth", "LatV cm/s", "stim_desc") + theme_no_x
+  velLong <- feature_plot(df, "velLongSmooth", "LongV cm/s", "stim_desc") + theme_no_x
+  velVert <- feature_plot(df, "velVertSmooth", "VertV cm/s", "stim_desc") + theme_no_x
   
   iff <- df %>% 
     mutate(
