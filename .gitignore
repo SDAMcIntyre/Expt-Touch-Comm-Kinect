@@ -125,3 +125,6 @@ data/
 # R files
 .Rproj.user
 ST-analysis/.Rhistory
+
+# figures
+*.png

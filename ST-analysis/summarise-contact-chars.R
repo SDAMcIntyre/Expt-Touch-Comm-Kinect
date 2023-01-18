@@ -31,7 +31,8 @@ ex <- read_csv(paste0(CONTACT_DATA_FOLDER, "2022-06-17/unit5/2022-06-17_18-15-56
 
 plot_feature <- function(df, feature, y_axis_label, trial_flag) {
   df %>% 
-    ggplot(aes(x = t, y = .data[[feature]], colour = as.character(.data[[trial_flag]]))) +
+    mutate(Stimulus = as.character(.data[[trial_flag]])) %>% 
+    ggplot(aes(x = t, y = .data[[feature]], colour = Stimulus)) +
     geom_point(size = 0.2) +
     labs(y = y_axis_label) 
 }
@@ -53,9 +54,9 @@ plot_session <- function(df, trial_flag = "trial_id", title = "") {
   iff <- df %>% 
     mutate(
       spike_label = if_else(spike == 1, "|", ""),
-      trial_flag = as.character(.data[[trial_flag]])
+      Stimulus = as.character(.data[[trial_flag]])
     ) %>% 
-    ggplot(aes(x = t, y = IFF, colour = trial_flag)) +
+    ggplot(aes(x = t, y = IFF, colour = Stimulus)) +
     geom_line(linewidth = 0.2) +
     geom_text(aes(y = -max(IFF)/5, label = spike_label), alpha = 0.5, size = 8) +
     labs(y = "IFF Hz", x = "Seconds") +
@@ -74,6 +75,8 @@ plot_session(ex)
 data_files_controlled <- list.files(CONTACT_DATA_FOLDER, "controlled", full.names = TRUE, recursive = TRUE)
 
 stim_files_controlled <- list.files(STIM_INFO_FOLDER, "stimuli", full.names = TRUE, recursive = TRUE)
+
+
 
 merge_session_data_w_stiminfo <- function(data_file_list, stim_file_list) {
   
@@ -128,9 +131,9 @@ merge_session_data_w_stiminfo <- function(data_file_list, stim_file_list) {
         unit = str_extract(fname, "ST[0-9]+_[0-9]+"),
         stim_desc = if_else( is.na(trial_id), NA_character_,
           paste0(
-          trial_id, ".",
+          str_pad(trial_id, 2, pad = "0"), ".",
           " ", type, 
-          " speed", speed, 
+          " speed", str_pad(speed, 2, pad ="0"), 
           " ", str_extract(contact_area, "(finger)|(hand)"),
           " ", force )
       ))
@@ -148,7 +151,7 @@ merge_session_data_w_stiminfo <- function(data_file_list, stim_file_list) {
 
 data_controlled <- merge_session_data_w_stiminfo(data_files_controlled, stim_files_controlled)
 
-#### plot semi-controlled data ####
+#### fix stimulus alignment ####
 
 # example single session
 ex_fname <- "2022-06-22_15-03-45_controlled-touch-MNG_ST18_1_block4.csv"
@@ -164,13 +167,19 @@ estimate_experimenter_lag <- function(contact, led) {
   cc_contact_led <- ccf(contact_flag, led_flag, lag.max = 2000, plot = FALSE)
   
   list(
-    ccplot = plot(cc_contact_led),
+    cc_plot = tibble(lag = cc_contact_led$lag, cc = cc_contact_led$acf) %>% 
+      ggplot(aes(x = lag, y = cc)) +
+      geom_point(),
     lag_estimate = cc_contact_led$lag[which(cc_contact_led$acf == max(cc_contact_led$acf))]
   ) 
 }
 
-ex_lag <- estimate_experimenter_lag(ex$areaSmooth, ex$trial_id)$lag_estimate
+ex_cc <- estimate_experimenter_lag(ex$areaSmooth, ex$trial_id)
+ex_lag <- ex_cc$lag_estimate
+ex_cc$cc_plot + labs(title = paste0(ex_fname, ", lag = ",ex_lag))
 
+ex_fill <- ex$stim_desc[2]
+  
 ex <- ex %>% 
   mutate(stim_desc_shifted = lag(stim_desc, ex_lag, ex_fill)) 
 
@@ -185,36 +194,75 @@ ex %>%
 #   summarise(experimenter_lag = estimate_experimenter_lag(areaSmooth, trial_id))
 
 result <- list()
-for (session_fname in data_controlled$filename) {
-  
-  result[[session_fname]] <- list()
+for (session_n in seq_along(unique(data_controlled$filename))) {
+# for (session_n in 1:2) {
+    session_fname <- unique(data_controlled$filename)[session_n]
+  print(paste0(session_n, " of ", length(unique(data_controlled$filename)), ": ", session_fname ))
+
+  result[[session_n]] <- list()
+  result[[session_n]]$filename <- session_fname
   
   session_data <- data_controlled %>% filter(filename == session_fname)
   
   cc_result <- estimate_experimenter_lag(session_data$areaSmooth, session_data$trial_id)
   lag_estimate <- cc_result$lag_estimate
+  cc_plot <- cc_result$cc_plot + 
+    labs(title = paste0("lag = ",lag_estimate)) +
+    plot_annotation(caption = session_fname)
   
   if (lag_estimate > 0) {
     fill_value <- na.omit(session_data$stim_desc)[1]
+    session_data <- session_data %>% 
+      mutate(stim_desc_shifted = lag(stim_desc, lag_estimate, fill_value))
+    
   } else {
     fill_value <- na.omit(session_data$stim_desc)[length(na.omit(session_data$stim_desc))]
+    session_data <- session_data %>% 
+      mutate(stim_desc_shifted = lead(stim_desc, -lag_estimate, fill_value))
+    
     }
   
-  session_data <- session_data %>% 
-    mutate(stim_desc_shifted = lag(stim_desc, lag_estimate, fill_value))
+  result[[session_n]]$session_data <- session_data
   
-  result[[session_fname]]$session_data <- session_data
+  result[[session_n]]$lag_estimate <- lag_estimate
   
-  result[[session_fname]]$lag_estimate <- lag_estimate
-  
-  result[[session_fname]]$plot_cc <- cc_result$cc_plot
-  
-  result[[session_fname]]$plot_before <- session_data %>% 
-    plot_session("stim_desc", session_fname)
+  result[[session_n]]$plot_cc <- cc_plot
 
-  result[[session_fname]]$plot_after <- session_data %>% 
-    plot_session("stim_desc_shifted", session_fname)
+  result[[session_n]]$plot_before <- session_data %>%
+    plot_session("stim_desc", paste(session_fname, "before"))
+
+  result[[session_n]]$plot_after <- session_data %>%
+    plot_session("stim_desc_shifted", paste(session_fname, "after"))
+
+}
+
+# save plots
+
+plot_folder <- "figures_cross-corr-stim-align/"
+for (r in seq_along(result)) {
+  # cross correlation
+  result[[r]]$plot_cc
+  plot_name <- result[[r]]$filename %>% 
+    str_replace("\\.csv", "_cc.png") %>% 
+    paste0(plot_folder, .)
+  ggsave(plot_name, width = 8, height = 6)
+  while (!is.null(dev.list()))  dev.off()  
   
+  # before
+  result[[r]]$plot_before
+  plot_name <- result[[r]]$filename %>% 
+    str_replace("\\.csv", "_before.png") %>% 
+    paste0(plot_folder, .)
+  ggsave(plot_name, width = 20, height = 8)
+  while (!is.null(dev.list()))  dev.off()
+  
+  #after
+  result[[r]]$plot_after
+  plot_name <- result[[r]]$filename %>% 
+    str_replace("\\.csv", "_after.png") %>% 
+    paste0(plot_folder, .)
+  ggsave(plot_name, width = 20, height = 8)
+  while (!is.null(dev.list()))  dev.off()
 }
 
 
