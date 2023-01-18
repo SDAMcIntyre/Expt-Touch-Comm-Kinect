@@ -29,40 +29,41 @@ theme_set(theme_bw(base_size = 14))
 
 ex <- read_csv(paste0(CONTACT_DATA_FOLDER, "2022-06-17/unit5/2022-06-17_18-15-56_controlled-touch-MNG_ST16_5_block1.csv"))
 
-feature_plot <- function(df, feature, y_axis_label, trial) {
+plot_feature <- function(df, feature, y_axis_label, trial_flag) {
   df %>% 
-    ggplot(aes(x = t, y = .data[[feature]], colour = as.character(.data[[trial]]))) +
+    ggplot(aes(x = t, y = .data[[feature]], colour = as.character(.data[[trial_flag]]))) +
     geom_point(size = 0.2) +
     labs(y = y_axis_label) 
 }
 
-plot_raw_session <- function(df) {
+plot_session <- function(df, trial_flag = "trial_id", title = "") {
   
   theme_no_x <- theme(
     axis.title.x=element_blank(),
     axis.text.x=element_blank(),
     axis.ticks.x=element_blank())
   
-  area <- feature_plot(df, "areaSmooth", expression("Contact cm"^2), "trial_id") + theme_no_x
-  depth <- feature_plot(df, "depthSmooth", "Depth cm", "trial_id") + theme_no_x
-  velAbs <- feature_plot(df, "velAbsSmooth", "AbsV cm/s", "trial_id") + theme_no_x
-  velLat <- feature_plot(df, "velLatSmooth", "LatV cm/s", "trial_id") + theme_no_x
-  velLong <- feature_plot(df, "velLongSmooth", "LongV cm/s", "trial_id") + theme_no_x
-  velVert <- feature_plot(df, "velVertSmooth", "VertV cm/s", "trial_id") + theme_no_x
+  area <- plot_feature(df, "areaSmooth", expression("Contact cm"^2), trial_flag) + theme_no_x
+  depth <- plot_feature(df, "depthSmooth", "Depth cm", trial_flag) + theme_no_x
+  velAbs <- plot_feature(df, "velAbsSmooth", "AbsV cm/s", trial_flag) + theme_no_x
+  velLat <- plot_feature(df, "velLatSmooth", "LatV cm/s", trial_flag) + theme_no_x
+  velLong <- plot_feature(df, "velLongSmooth", "LongV cm/s", trial_flag) + theme_no_x
+  velVert <- plot_feature(df, "velVertSmooth", "VertV cm/s", trial_flag) + theme_no_x
   
   iff <- df %>% 
     mutate(
       spike_label = if_else(spike == 1, "|", ""),
-      trial_id = as.character(trial_id)
+      trial_flag = as.character(.data[[trial_flag]])
     ) %>% 
-    ggplot(aes(x = t, y = IFF, colour = trial_id)) +
+    ggplot(aes(x = t, y = IFF, colour = trial_flag)) +
     geom_line(linewidth = 0.2) +
     geom_text(aes(y = -max(IFF)/5, label = spike_label), alpha = 0.5, size = 8) +
     labs(y = "IFF Hz", x = "Seconds") +
     theme(legend.position = "none")
   
   area / depth / velAbs / velLat / velLong / velVert / iff + 
-    plot_layout(guides = 'collect') 
+    plot_layout(guides = 'collect') +
+    plot_annotation(title = title)
 }
 
 plot_raw_session(ex)
@@ -149,19 +150,19 @@ data_controlled <- merge_session_data_w_stiminfo(data_files_controlled, stim_fil
 
 #### plot semi-controlled data ####
 
-plot_session <- function(df, title = "") {
+plot_session <- function(df, title = "", ) {
   
   theme_no_x <- theme(
     axis.title.x=element_blank(),
     axis.text.x=element_blank(),
     axis.ticks.x=element_blank())
   
-  area <- feature_plot(df, "areaSmooth", expression("Contact cm"^2), "stim_desc") + theme_no_x
-  depth <- feature_plot(df, "depthSmooth", "Depth cm", "stim_desc") + theme_no_x
-  velAbs <- feature_plot(df, "velAbsSmooth", "AbsV cm/s", "stim_desc") + theme_no_x
-  velLat <- feature_plot(df, "velLatSmooth", "LatV cm/s", "stim_desc") + theme_no_x
-  velLong <- feature_plot(df, "velLongSmooth", "LongV cm/s", "stim_desc") + theme_no_x
-  velVert <- feature_plot(df, "velVertSmooth", "VertV cm/s", "stim_desc") + theme_no_x
+  area <- plot_feature(df, "areaSmooth", expression("Contact cm"^2), "stim_desc") + theme_no_x
+  depth <- plot_feature(df, "depthSmooth", "Depth cm", "stim_desc") + theme_no_x
+  velAbs <- plot_feature(df, "velAbsSmooth", "AbsV cm/s", "stim_desc") + theme_no_x
+  velLat <- plot_feature(df, "velLatSmooth", "LatV cm/s", "stim_desc") + theme_no_x
+  velLong <- plot_feature(df, "velLongSmooth", "LongV cm/s", "stim_desc") + theme_no_x
+  velVert <- plot_feature(df, "velVertSmooth", "VertV cm/s", "stim_desc") + theme_no_x
   
   iff <- df %>% 
     mutate(
@@ -181,45 +182,73 @@ plot_session <- function(df, title = "") {
 }
 
 # example single session
-ex_fname <- "2022-06-22_15-30-28_controlled-touch-MNG_ST18_1_block1.csv"
+ex_fname <- "2022-06-22_15-03-45_controlled-touch-MNG_ST18_1_block4.csv"
 ex <- data_controlled %>% 
   filter(filename == ex_fname)
 
-ex %>% plot_session(ex_fname)
+ex %>% plot_session("stim_desc", ex_fname) 
 
 estimate_experimenter_lag <- function(contact, led) {
   contact_flag <- if_else(contact == 0, 0, 1)
   led_flag <- if_else(is.na(led), 0, 1)
   
   cc_contact_led <- ccf(contact_flag, led_flag, lag.max = 2000, plot = FALSE)
-  cc_contact_led$lag[which(cc_contact_led$acf == max(cc_contact_led$acf))]
-}
-
-estimate_experimenter_lag(ex$areaSmooth, ex$trial_id)
-
-lags <- data_controlled %>%
-  group_by(filename) %>% 
-  summarise(experimenter_lag = estimate_experimenter_lag(areaSmooth, trial_id))
-
-ex %>%
-  filter(between(t,0,20)) %>% 
-  mutate(zero_contact = if_else(areaSmooth == 0, "x", "")) %>% 
-  feature_plot("areaSmooth", expression("Contact cm"^2), "stim_desc") +
-  geom_text(aes(y = -1, label = zero_contact), alpha = 0.5, size = 8)
   
-estimate_min_isi <- function(contact, trial) {
-  get_zero_runs <- function(x) {
-    all_runs <- rle(x)
-    all_runs[["lengths"]][all_runs[["values"]] == 0]
-  }
-  no_contact_runs <- get_zero_runs(contact)
-  ordered_runs <- no_contact_runs[order(no_contact_runs, decreasing = TRUE)]
-  min(ordered_runs[1:n_distinct(trial, na.rm = TRUE)])
+  list(
+    ccplot = plot(cc_contact_led),
+    lag_estimate = cc_contact_led$lag[which(cc_contact_led$acf == max(cc_contact_led$acf))]
+  ) 
 }
 
-data_controlled %>% 
-  group_by(filename) %>% 
-  summarise(min_isi = estimate_min_isi(area, trial)) %>% View
+ex_lag <- estimate_experimenter_lag(ex$areaSmooth, ex$trial_id)$lag_estimate
+
+ex <- ex %>% 
+  mutate(stim_desc_shifted = lag(stim_desc, ex_lag, ex_fill)) 
+
+ex %>% 
+  plot_session("stim_desc_shifted", ex_fname) 
+  # plot_feature("areaSmooth", expression("Contact cm"^2), "stim_desc_shifted")
+  
+
+# all sessions
+# lags <- data_controlled %>%
+#   group_by(filename) %>% 
+#   summarise(experimenter_lag = estimate_experimenter_lag(areaSmooth, trial_id))
+
+result <- list()
+for (session_fname in data_controlled$filename) {
+  
+  result[[session_fname]] <- list()
+  
+  session_data <- data_controlled %>% filter(filename == session_fname)
+  
+  cc_result <- estimate_experimenter_lag(session_data$areaSmooth, session_data$trial_id)
+  lag_estimate <- cc_result$lag_estimate
+  
+  if (lag_estimate > 0) {
+    fill_value <- na.omit(session_data$stim_desc)[1]
+  } else {
+    fill_value <- na.omit(session_data$stim_desc)[length(na.omit(session_data$stim_desc))]
+    }
+  
+  session_data <- session_data %>% 
+    mutate(stim_desc_shifted = lag(stim_desc, lag_estimate, fill_value))
+  
+  result[[session_fname]]$session_data <- session_data
+  
+  result[[session_fname]]$lag_estimate <- lag_estimate
+  
+  result[[session_fname]]$plot_cc <- cc_result$cc_plot
+  
+  result[[session_fname]]$plot_before <- session_data %>% 
+    plot_session("stim_desc", session_fname)
+
+  result[[session_fname]]$plot_after <- session_data %>% 
+    plot_session("stim_desc_shifted", session_fname)
+  
+}
+
+
 
 # area
 area <- data_controlled %>% 
