@@ -66,7 +66,7 @@ plot_session <- function(df, trial_flag = "trial_id", title = "") {
     plot_annotation(title = title)
 }
 
-plot_raw_session(ex)
+plot_session(ex)
 
 
 #### read in semi-controlled data ####
@@ -149,37 +149,6 @@ merge_session_data_w_stiminfo <- function(data_file_list, stim_file_list) {
 data_controlled <- merge_session_data_w_stiminfo(data_files_controlled, stim_files_controlled)
 
 #### plot semi-controlled data ####
-
-plot_session <- function(df, title = "", ) {
-  
-  theme_no_x <- theme(
-    axis.title.x=element_blank(),
-    axis.text.x=element_blank(),
-    axis.ticks.x=element_blank())
-  
-  area <- plot_feature(df, "areaSmooth", expression("Contact cm"^2), "stim_desc") + theme_no_x
-  depth <- plot_feature(df, "depthSmooth", "Depth cm", "stim_desc") + theme_no_x
-  velAbs <- plot_feature(df, "velAbsSmooth", "AbsV cm/s", "stim_desc") + theme_no_x
-  velLat <- plot_feature(df, "velLatSmooth", "LatV cm/s", "stim_desc") + theme_no_x
-  velLong <- plot_feature(df, "velLongSmooth", "LongV cm/s", "stim_desc") + theme_no_x
-  velVert <- plot_feature(df, "velVertSmooth", "VertV cm/s", "stim_desc") + theme_no_x
-  
-  iff <- df %>% 
-    mutate(
-      spike_label = if_else(spike == 1, "|", ""),
-      trial_id = as.character(trial_id)
-    ) %>% 
-    ggplot(aes(x = t, y = IFF, colour = trial_id)) +
-    geom_line(linewidth = 0.2) +
-    geom_text(aes(y = -max(IFF)/5, label = spike_label), alpha = 0.5, size = 8) +
-    labs(y = "IFF Hz", x = "Seconds") +
-    theme(legend.position = "none")
-  
-  area / depth / velAbs / velLat / velLong / velVert / iff + 
-    plot_layout(guides = 'collect') + 
-    #theme(legend.position = "bottom") +
-    plot_annotation(title = title)
-}
 
 # example single session
 ex_fname <- "2022-06-22_15-03-45_controlled-touch-MNG_ST18_1_block4.csv"
