@@ -271,7 +271,7 @@ for (session_n in seq_along(unique(data_controlled$filename))) {
 
 plot_folder <- "figures_stim-align-cc-fill/"
 for (r in seq_along(result)) {
-for (r in 1:2) {
+# for (r in 1:2) {
   print(paste0(r, " of ", length(result), ": ", result[[r]]$filename ))
   
   # cross correlation
@@ -313,11 +313,6 @@ for (r in seq_along(result)) {
     )
 }
 
-data_controlled <- data_controlled %>%
-  mutate(
-    stim_desc_unordered = paste0(type," ", contact_area,
-                                 " ", force, " speed", speed)
-  )
 
 #### dataset plots ####
 
