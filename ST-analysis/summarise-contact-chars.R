@@ -5,10 +5,11 @@ library(stringr)
 library(ggplot2)
 library(patchwork)
 library(Hmisc)
+library(tidyr)
 
 #### data folders ####
 DATA_FOLDER <- "~/Library/CloudStorage/OneDrive-Linköpingsuniversitet/projects - in progress/touch comm MNG Kinect/"
-CONTACT_DATA_FOLDER <- paste0(DATA_FOLDER, "data_contact-IFF-trial/")
+CONTACT_DATA_FOLDER <- paste0(DATA_FOLDER, "data_contact-IFF-trial/with_contact_flag/")
 STIM_INFO_FOLDER <- paste0(DATA_FOLDER, "data_stimulus-logs/")
 
 # notes from Shan about the data:
@@ -34,7 +35,8 @@ plot_feature <- function(df, feature, y_axis_label, trial_flag) {
     mutate(Stimulus = as.character(.data[[trial_flag]])) %>% 
     ggplot(aes(x = t, y = .data[[feature]], colour = Stimulus)) +
     geom_point(size = 0.2) +
-    labs(y = y_axis_label) 
+    labs(y = y_axis_label) + 
+   theme(legend.position = "bottom")
 }
 
 plot_session <- function(df, trial_flag = "trial_id", title = "") {
@@ -43,13 +45,14 @@ plot_session <- function(df, trial_flag = "trial_id", title = "") {
     axis.title.x=element_blank(),
     axis.text.x=element_blank(),
     axis.ticks.x=element_blank())
+  theme_no_legend <- theme(legend.position = "none")
   
-  area <- plot_feature(df, "areaSmooth", expression("Contact cm"^2), trial_flag) + theme_no_x
-  depth <- plot_feature(df, "depthSmooth", "Depth cm", trial_flag) + theme_no_x
-  velAbs <- plot_feature(df, "velAbsSmooth", "AbsV cm/s", trial_flag) + theme_no_x
-  velLat <- plot_feature(df, "velLatSmooth", "LatV cm/s", trial_flag) + theme_no_x
-  velLong <- plot_feature(df, "velLongSmooth", "LongV cm/s", trial_flag) + theme_no_x
-  velVert <- plot_feature(df, "velVertSmooth", "VertV cm/s", trial_flag) + theme_no_x
+  area <- plot_feature(df, "areaSmooth", expression("Contact cm"^2), trial_flag) + theme_no_x + theme_no_legend
+  depth <- plot_feature(df, "depthSmooth", "Depth cm", trial_flag) + theme_no_x + theme_no_legend
+  velAbs <- plot_feature(df, "velAbsSmooth", "AbsV cm/s", trial_flag) + theme_no_x + theme_no_legend
+  velLat <- plot_feature(df, "velLatSmooth", "LatV cm/s", trial_flag) + theme_no_x + theme_no_legend
+  velLong <- plot_feature(df, "velLongSmooth", "LongV cm/s", trial_flag) + theme_no_x + theme_no_legend
+  velVert <- plot_feature(df, "velVertSmooth", "VertV cm/s", trial_flag) + theme_no_x + theme_no_legend
   
   iff <- df %>% 
     mutate(
@@ -58,12 +61,13 @@ plot_session <- function(df, trial_flag = "trial_id", title = "") {
     ) %>% 
     ggplot(aes(x = t, y = IFF, colour = Stimulus)) +
     geom_line(linewidth = 0.2) +
-    geom_text(aes(y = -max(IFF)/5, label = spike_label), alpha = 0.5, size = 8) +
+    geom_text(aes(y = -max(IFF)/5, label = spike_label), alpha = 0.5, size = 8, show.legend = FALSE) +
     labs(y = "IFF Hz", x = "Seconds") +
-    theme(legend.position = "none")
+    theme(legend.position = "bottom")
   
   area / depth / velAbs / velLat / velLong / velVert / iff + 
-    plot_layout(guides = 'collect') +
+    #plot_layout(guides = 'collect') +
+    #theme(legend.position = "bottom") +
     plot_annotation(title = title)
 }
 
@@ -75,8 +79,6 @@ plot_session(ex)
 data_files_controlled <- list.files(CONTACT_DATA_FOLDER, "controlled", full.names = TRUE, recursive = TRUE)
 
 stim_files_controlled <- list.files(STIM_INFO_FOLDER, "stimuli", full.names = TRUE, recursive = TRUE)
-
-
 
 merge_session_data_w_stiminfo <- function(data_file_list, stim_file_list) {
   
@@ -154,7 +156,7 @@ data_controlled <- merge_session_data_w_stiminfo(data_files_controlled, stim_fil
 #### fix stimulus alignment ####
 
 # example single session
-ex_fname <- "2022-06-22_15-03-45_controlled-touch-MNG_ST18_1_block4.csv"
+ex_fname <- "2022-06-14_17-48-39_controlled-touch-MNG_ST13_3_block3.csv"
 ex <- data_controlled %>% 
   filter(filename == ex_fname)
 
@@ -174,26 +176,40 @@ estimate_experimenter_lag <- function(contact, led) {
   ) 
 }
 
-ex_cc <- estimate_experimenter_lag(ex$areaSmooth, ex$trial_id)
+# estimate lag
+ex_cc <- estimate_experimenter_lag(ex$Contact_Flag, ex$trial_id)
 ex_lag <- ex_cc$lag_estimate
+
+# cross correlation plot
 ex_cc$cc_plot + labs(title = paste0(ex_fname, ", lag = ",ex_lag))
 
+# adjust based on estimated lag
 ex_fill <- ex$stim_desc[2]
-  
 ex <- ex %>% 
   mutate(stim_desc_shifted = lag(stim_desc, ex_lag, ex_fill)) 
 
+# plot adjustment
 ex %>% 
   plot_session("stim_desc_shifted", ex_fname) 
   # plot_feature("areaSmooth", expression("Contact cm"^2), "stim_desc_shifted")
-  
+
+# fill NAs
+ex <- ex %>% 
+  mutate(stim_desc_filled = stim_desc_shifted) %>% 
+  fill(stim_desc_filled)
+
+# plot adjustment
+ex %>% 
+  plot_session("stim_desc_filled", ex_fname) 
+
 
 # all sessions
 
 result <- list()
 for (session_n in seq_along(unique(data_controlled$filename))) {
 # for (session_n in 1:2) {
-    session_fname <- unique(data_controlled$filename)[session_n]
+# for (session_n in 12:length(unique(data_controlled$filename))) {
+  session_fname <- unique(data_controlled$filename)[session_n]
   print(paste0(session_n, " of ", length(unique(data_controlled$filename)), ": ", session_fname ))
 
   result[[session_n]] <- list()
@@ -201,7 +217,7 @@ for (session_n in seq_along(unique(data_controlled$filename))) {
   
   session_data <- data_controlled %>% filter(filename == session_fname)
   
-  cc_result <- estimate_experimenter_lag(session_data$areaSmooth, session_data$trial_id)
+  cc_result <- estimate_experimenter_lag(session_data$Contact_Flag, session_data$trial_id)
   lag_estimate <- cc_result$lag_estimate
   cc_plot <- cc_result$cc_plot + 
     labs(title = paste0("lag = ",lag_estimate)) +
@@ -219,6 +235,11 @@ for (session_n in seq_along(unique(data_controlled$filename))) {
     
     }
   
+  # simple fill
+  session_data <- session_data %>% 
+    mutate(stim_desc_filled = stim_desc) %>% 
+    fill(stim_desc_filled)
+  
   result[[session_n]]$session_data <- session_data
   
   result[[session_n]]$lag_estimate <- lag_estimate
@@ -228,14 +249,18 @@ for (session_n in seq_along(unique(data_controlled$filename))) {
   result[[session_n]]$plot_before <- session_data %>%
     plot_session("stim_desc", paste(session_fname, "before"))
 
-  result[[session_n]]$plot_after <- session_data %>%
-    plot_session("stim_desc_shifted", paste(session_fname, "after"))
+  result[[session_n]]$plot_after_cc <- session_data %>%
+    plot_session("stim_desc_shifted", paste(session_fname, "after.cc"))
+  
+  result[[session_n]]$plot_after_sf <- session_data %>%
+    plot_session("stim_desc_filled", paste(session_fname, "after.sf"))
 
 }
 
+
 # save plots
 
-plot_folder <- "figures_cross-corr-stim-align/"
+# plot_folder <- "figures_stim-align-cc-fill/"
 for (r in seq_along(result)) {
 # for (r in 1:2) {
   print(paste0(r, " of ", length(result), ": ", result[[r]]$filename ))
@@ -252,16 +277,22 @@ for (r in seq_along(result)) {
   result[[r]]$filename %>% 
     str_replace("\\.csv", "_before.png") %>% 
     paste0(plot_folder, .) %>% 
-    ggsave(width = 20, height = 8)
+    ggsave(width = 20, height = 12)
 
   #after
-  print(result[[r]]$plot_after)
+  print(result[[r]]$plot_after_cc)
   result[[r]]$filename %>% 
-    str_replace("\\.csv", "_after.png") %>% 
+    str_replace("\\.csv", "_after-cc.png") %>% 
     paste0(plot_folder, .) %>% 
-    ggsave(width = 20, height = 8)
+    ggsave(width = 20, height = 12)
+  
+  #after
+  print(result[[r]]$plot_after_sf)
+  result[[r]]$filename %>% 
+    str_replace("\\.csv", "_after-sf.png") %>% 
+    paste0(plot_folder, .) %>% 
+    ggsave(width = 20, height = 12)
 }
-
 
 
 # area
