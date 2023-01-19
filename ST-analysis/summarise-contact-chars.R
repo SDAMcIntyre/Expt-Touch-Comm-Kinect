@@ -266,11 +266,12 @@ for (session_n in seq_along(unique(data_controlled$filename))) {
 
 }
 
+
 # save plots
 
 plot_folder <- "figures_stim-align-cc-fill/"
 for (r in seq_along(result)) {
-# for (r in 1:2) {
+for (r in 1:2) {
   print(paste0(r, " of ", length(result), ": ", result[[r]]$filename ))
   
   # cross correlation
@@ -300,6 +301,7 @@ for (r in seq_along(result)) {
     str_replace("\\.csv", "_after-sf.png") %>% 
     paste0(plot_folder, .) %>% 
     ggsave(width = 20, height = 12)
+
 }
 
 # re-combine corrected data
@@ -390,6 +392,7 @@ data_controlled %>%
     y = "Longitudinal velocity (cm/s)", 
     x = "Seconds"
     )
+
 
 # area
 data_controlled %>% 
