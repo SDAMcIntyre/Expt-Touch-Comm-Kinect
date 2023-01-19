@@ -238,7 +238,16 @@ for (session_n in seq_along(unique(data_controlled$filename))) {
   # simple fill
   session_data <- session_data %>% 
     mutate(stim_desc_filled = stim_desc) %>% 
-    fill(stim_desc_filled)
+    tidyr::fill(stim_desc_filled, .direction = "downup") %>% 
+    # also apply improvements to individual stim descriptors 
+    mutate(
+      type = str_extract(stim_desc_filled, "(tap)|(stroke)"),
+      speed = str_extract(stim_desc_filled, "speed[0-9-]{2}") %>% str_replace("speed", ""),
+      contact_area = str_extract(stim_desc_filled, "(finger)|(hand)"),
+      force = str_extract(stim_desc_filled, "(light)|(moderate)|(strong)"),
+      stim_desc_unordered = paste0(type," ", contact_area,
+                                   " ", force, " speed", speed)
+      )
   
   result[[session_n]]$session_data <- session_data
   
@@ -257,10 +266,9 @@ for (session_n in seq_along(unique(data_controlled$filename))) {
 
 }
 
-
 # save plots
 
-# plot_folder <- "figures_stim-align-cc-fill/"
+plot_folder <- "figures_stim-align-cc-fill/"
 for (r in seq_along(result)) {
 # for (r in 1:2) {
   print(paste0(r, " of ", length(result), ": ", result[[r]]$filename ))
@@ -294,9 +302,97 @@ for (r in seq_along(result)) {
     ggsave(width = 20, height = 12)
 }
 
+# re-combine corrected data
+data_controlled <- tibble()
+for (r in seq_along(result)) {
+  data_controlled <- rbind(
+    data_controlled, 
+    result[[r]]$session_data
+    )
+}
+
+data_controlled <- data_controlled %>%
+  mutate(
+    stim_desc_unordered = paste0(type," ", contact_area,
+                                 " ", force, " speed", speed)
+  )
+
+#### dataset plots ####
+
+file_list <- unique(data_controlled$filename)
+
+for (session_number in 1:length(file_list)) {
+  session_file_name <- file_list[session_number]
+  print(paste0("session ", session_number, " of ", length(file_list), ": ", session_file_name))
+  
+    session_data <- data_controlled %>% 
+      filter(filename == session_file_name)
+    
+    stim_list <- unique(session_data$stim_desc_unordered)
+    
+    for (stim_name in stim_list) {
+      stim_data <- session_data %>% 
+        filter(stim_desc_unordered == stim_name)
+      
+      plot_folder <- paste0("figures_stim-plots/",stim_name,"/")
+      if (!dir.exists(file.path(plot_folder)) ) dir.create(file.path(plot_folder), recursive = TRUE)
+      
+      stim_plot <- stim_data %>% 
+        filter(filename == session_file_name & stim_desc_unordered == stim_name) %>% 
+        plot_session("stim_desc_unordered", stim_name) + plot_annotation(caption = session_file_name)
+      
+      print(stim_plot)
+      session_file_name %>% 
+        str_replace("\\.csv", 
+                    paste0("_", str_extract(stim_data$stim_desc_filled[1], "[0-9]{2}\\."), "png")
+                    ) %>% 
+        paste0(plot_folder, .) %>% 
+        ggsave(width = 20, height = 12)
+      
+    }
+}
+
+
+data_controlled %>% 
+  mutate(
+    file_info = str_remove(filename, "controlled-touch-MNG_") %>% 
+      str_remove("\\.csv")
+    ) %>% 
+  filter(stim_desc_unordered == stim_name) %>% 
+  ggplot(aes(x = t, y = areaSmooth)) +
+  geom_line(aes(colour = file_info)) +
+  labs(x = "Seconds", title = stim_name) +
+  theme(legend.position = "bottom")
+
+data_controlled %>% 
+  filter(filename == file_name & stim_desc_unordered == stim_name) %>% 
+  plot_session("stim_desc_unordered", stim_name) + plot_annotation(caption = file_name)
+
+ex %>% 
+  plot_session("stim_desc_filled") + plot_annotation(caption = ex_fname)
+
+  
+
+# Stroking with the hand
+data_controlled %>% 
+  filter(
+      Contact_Flag != 0 &
+      type == "stroke" &
+      str_detect(contact_area, "hand")
+    ) %>% 
+  mutate(stim_label = paste0(force, " ", speed," cm/s" ) ) %>% 
+  ggplot(aes(x = t, y = velLongSmooth, colour = force)) +
+  facet_wrap(~ stim_label, scales = "free", ncol = 5) +
+  geom_line(aes(group = filename), show.legend = FALSE, size = 0.5, alpha = 0.4) +
+  scale_y_continuous(limits = c(-60,80)) +
+  labs(
+    title = "Stroking with the hand", 
+    y = "Longitudinal velocity (cm/s)", 
+    x = "Seconds"
+    )
 
 # area
-area <- data_controlled %>% 
+data_controlled %>% 
   filter(areaSmooth > 0 & !is.na(trial)) %>% 
   ggplot(aes(x = as.factor(speed), y = areaSmooth, colour = force)) +
   facet_wrap(type ~ contact_area, scales = "free") +
